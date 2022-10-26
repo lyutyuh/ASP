@@ -1,4 +1,4 @@
-name: ar
+name: asp
 channels:
   - pytorch
   - huggingface
