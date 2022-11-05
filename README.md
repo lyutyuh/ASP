@@ -1,7 +1,7 @@
 # Autoregressive Structured Prediction with Language Models
 This repository contains PyTorch implementation and pre-trained models for ``ASP``, described in [Autoregressive Structured Prediction with Language Models](https://arxiv.org/pdf/2210.14698.pdf).
 
-<div style="text-align: right"> Links: <a href="https://github.com/eth-nlped">ETH-NLPED lab</a> , <a href="https://github.com/rycolab">Rycolab</a>  </div>
+<p align="right" width="100%"> Links: <a href="https://github.com/eth-nlped">ETH-NLPED lab</a> , <a href="https://github.com/rycolab">Rycolab</a>  </p>
 
 ![](./figs/illustration.gif)
 
@@ -29,20 +29,21 @@ export ASP=$PWD # setting environment variable
 <details>
     <summary> <code> pip </code> </summary>
 
-  ```bash
-  python -m venv <path_to_venv>/asp    # create a new environment (asp)
-  source <path_to_venv>/asp/bin/activate
-  pip install -r requirements.txt
-  ```
+```bash
+python -m venv <path_to_venv>/asp    # create a new environment (asp)
+source <path_to_venv>/asp/bin/activate
+pip install -r requirements.txt
+```
 
-</details> or
+</details> 
+or
 
 <details>
     <summary> <code>conda</code> </summary>
 
-  ```bash
-  conda env create -f environment.yml    # create a new environment (asp)
-  ```
+```bash
+conda env create -f environment.yml    # create a new environment (asp)
+```
 
 </details>
 
@@ -69,17 +70,16 @@ export ASP=$PWD # setting environment variable
     <summary> <code> named entity recognition </code> </summary>
     
 ### CoNLL-03
-
-  ```bash
-    wget https://polybox.ethz.ch/index.php/s/bFf8vJBonIT7sr8/download -O ./data/conll03_ner.zip
-    unzip ./data/conll03_ner.zip -d ./data
-    rm ./data/conll03_ner.zip
-    python ./data/conll03_ner/conll03_to_json.py
-    python ./data/t5minimize_ner.py ./data/conll03_ner ./data/conll03_ner
-  ```
+```bash
+  wget https://polybox.ethz.ch/index.php/s/bFf8vJBonIT7sr8/download -O ./data/conll03_ner.zip
+  unzip ./data/conll03_ner.zip -d ./data
+  rm ./data/conll03_ner.zip
+  python ./data/conll03_ner/conll03_to_json.py
+  python ./data/t5minimize_ner.py ./data/conll03_ner ./data/conll03_ner
+```
 
 ### OntoNotes V5
-
+Coming soon!
 </details> 
 
 
