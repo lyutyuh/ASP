@@ -19,7 +19,7 @@ from transformers import T5Tokenizer
 # Usage:
 # python t5minimize_ner.py ./conll03_ner/ ./conll03_ner/
 
-tokenizer = T5Tokenizer.from_pretrained("t5-small")
+tokenizer = T5Tokenizer.from_pretrained("t5-small", model_max_length=4096)
 
 MENTION_START = '<m>'
 MENTION_END   = '</m>'
@@ -246,7 +246,7 @@ if __name__ == "__main__":
     output_dir = sys.argv[2]
 
     if "conll03" in input_dir:
-        typefile = input_dir + "conll03_types.json"
+        typefile = f"{input_dir}/conll03_types.json"
 
     with open(typefile) as input_file:
         labels = json.load(input_file)

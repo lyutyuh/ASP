@@ -9,13 +9,14 @@ import json
 import copy
 import collections
 import logging
+from typing import Optional, Tuple, Any, Dict, Iterable, List
 
 import util
 import conll
 from transformers import T5Tokenizer
 
 # Usage:
-# python t5minimize_coref.py ontonotes/ ontonotes/
+# python t5minimize_coref.py ontonotes_coref/ ontonotes_coref/
 
 logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
@@ -24,7 +25,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__file__)
 
-tokenizer = T5Tokenizer.from_pretrained("t5-small")
+tokenizer = T5Tokenizer.from_pretrained("t5-small", model_max_length=4096)
 
 SPEAKER_START = '<speaker>'
 SPEAKER_END   = '</speaker>'
@@ -34,13 +35,11 @@ MENTION_END   = '</m>'
 prefix_subtokens = tokenizer.tokenize("coreference resolution:")
 prefix_len = len(prefix_subtokens)
 
-
 tokenizer.add_tokens(SPEAKER_START)
 tokenizer.add_tokens(SPEAKER_END)
 tokenizer.add_tokens(MENTION_START)
 tokenizer.add_tokens(MENTION_END)
 
-max_input_len = 0
 
 class DocumentState(object):
     def __init__(self, key):
@@ -110,13 +109,12 @@ class DocumentState(object):
         # merged_clusters: list of clusters
         merged_clusters = [list(c) for c in merged_clusters]
         cluster_indices = {
-            x: i\
-            for i in range(len(merged_clusters)) for x in merged_clusters[i]}
+            x: i for i in range(len(merged_clusters)) for x in merged_clusters[i]}
 
         docs = []
         num_words = len(util.flatten(self.segments))
         num_segments = len(self.segments)
-        
+
         subtoken_map = self.segment_subtoken_map
         assert num_words == len(util.flatten(self.segment_subtoken_map))
 
@@ -180,35 +178,54 @@ def post_processing_mention_indices(
         [-1  -1  -1 -1   1  -1   1  ]
     """
     tmp_mention_indices = []
-    for i in range(len(mention_indices)):
-        tmp_mention_indices_i = []
-        for j in range(len(mention_indices[i])):
+    for seg_i in range(len(mention_indices)):
+        tmp_mention_indices_seg_i = []
+        for j in range(len(mention_indices[seg_i])):
             # reading from left to right
-            if type(mention_indices[i][j]) != list:
-                tmp_mention_indices_i.append(mention_indices[i][j])
+            if type(mention_indices[seg_i][j]) != list:
+                # j is either 1. word or 2. closing bracket
+                tmp_mention_indices_seg_i.append(mention_indices[seg_i][j])
+                # putting the index of pairing opening bracket or -1
                 continue
             else:
-                tmp_mention_indices_i.append(-1)
-                for k in range(j+1, len(mention_indices[i])):
-                    if mention_indices[i][k] in mention_indices[i][j]:
-                        # the pairing bracket of k is j
-                        mention_indices[i][k] = j
-        tmp_mention_indices.append(tmp_mention_indices_i)
+                # j is opening bracket [*
+                tmp_mention_indices_seg_i.append(-1)
+                for k in range(j+1, len(mention_indices[seg_i])):
+                    if mention_indices[seg_i][k] in mention_indices[seg_i][j]:
+                        # the closing bracket k pairs with opening bracket j
+                        mention_indices[seg_i][k] = j
+        tmp_mention_indices.append(tmp_mention_indices_seg_i)
     return tmp_mention_indices
 
 
 def m_star_insert_info(
-    mentions, segments, m_infos, mention_to_seg_id
+    mentions: List[Tuple[int, int]],
+    segments: List[List[str]], 
+    m_infos: List[int], 
+    mention_to_seg_id: Dict[int, int]
 ):
+    """
+        Get a sequence of information of the same length with the target sequence.
+        mentions: list of mentions, e.g. [(0, 0), (2, 3), (4, 4)] format: [start, end] (inclusive)
+        segments: list of segments, e.g. [['I', 'have', 'a', 'cat'], ['I', 'have', 'a', 'dog']]
+        m_infos: list of information to be inserted with each mention, 
+                 e.g. cluster indices [0, 1, 2]
+        mention_to_seg_id: dict, mapping mention to its segment id
+    """
     m_startings, m_endings = zip(*mentions) if len(mentions) > 0 else ([], [])
     # order preserving
     sorted_pos = sorted(
         [(x+1, -1, y) for x, y in zip(m_endings, m_infos)] +
         [(x,  1, [y]) for x, y in zip(m_startings, m_infos)],
-        reverse=True
-    )
+        reverse=True # insert from right to left, so that the calculated positions are not changed
+    ) 
+    # when inserting positions are the same, the closing bracket comes first
+    # which means that the closing bracket is inserted first
+    # and the opening bracket is inserted later
+
     target_sequences = [
         [-1 for x in range(len(segments[i]))] for i in range(len(segments))]
+    # offset of each segment
     offsets = list(accumu([len(x) for x in segments]))
 
     prev_loc, prev_token = -1, None
@@ -227,18 +244,29 @@ def m_star_insert_info(
 
 
 def m_star_target_sequences(
-    mentions,
-    sequences,
-    m_special_start, m_special_end,
-    mention_to_seg_id
+    mentions: List[Tuple[int, int]],
+    sequences: List[List[str]],
+    m_special_start: str, 
+    m_special_end: str,
+    mention_to_seg_id: Dict[int, int]
 ):
+    """
+        Get a sequence of target sentences with <m> and <\m> inserted.
+        mentions: list of mentions, e.g. [(0, 0), (2, 3), (4, 4)] format: [start, end] (inclusive)
+        sequences: list of sequences, e.g. [['I', 'have', 'a', 'cat'], ['I', 'have', 'a', 'dog']]
+        m_special_start: special token for starting bracket
+        m_special_end: special token for ending bracket
+        mention_to_seg_id: dict, mapping mention to its segment id
+    """
     m_startings, m_endings = zip(*mentions) if len(mentions) > 0 else ([], [])
     sorted_pos = sorted(
-        [(x+1, -1, m_special_end) for x in m_endings] +
-        [(x,  1, m_special_start) for x in m_startings],
-        reverse=True
+        [(x+1, -1, m_special_end)   for x in m_endings] +
+        [(x,    1, m_special_start) for x in m_startings],
+        reverse=True # insert from right to left, so that the calculated positions are not changed
     )
+
     target_sequences = copy.deepcopy(sequences)
+    # offset of each segment
     offsets = list(accumu([len(x) for x in sequences]))
 
     prev_loc, prev_token = -1, None
@@ -247,8 +275,8 @@ def m_star_target_sequences(
         offset = offsets[seg_idx]
 
         if x[0] == prev_loc and (x[2] == prev_token == m_special_start):
-            # contracting left brackets
-            pass
+            # contracting left brackets to [*
+            pass # do nothing
         else:
             target_sequences[seg_idx].insert(x[0]-offset, x[2])
         prev_loc, prev_token = x[0], x[2]
@@ -337,13 +365,14 @@ def get_document(
         sentence_end = len(row) == 0
         if not sentence_end:
             assert len(row) >= 12
-
-            if current_speaker is None or current_speaker != row[9]:
+            speaker_orthography = row[9].replace("_", " ").replace("#", " ").strip()
+            if current_speaker is None or current_speaker != speaker_orthography:
                 # insert speaker
                 word_idx += 1
-                current_speaker = row[9]
+                current_speaker = speaker_orthography
                 speaker_text = tokenizer.tokenize(current_speaker)
                 document_state.tokens.append(current_speaker)
+
                 for sidx, subtoken in enumerate([SPEAKER_START] + speaker_text + [SPEAKER_END]):
                     document_state.subtokens.append(subtoken)
                     info = None
@@ -353,7 +382,7 @@ def get_document(
 
             word_idx += 1
             word = normalize_word(row[3], language)
-            
+
             if is_punctuation(word):
                 subtokens = tokenizer.tokenize(word)[1:]  # skipping '_'
             elif after_hyphen:
@@ -389,7 +418,7 @@ def get_document(
     split_into_segments(
         document_state, segment_len, constraints1, document_state.token_end
     )
-    
+
     stats[f"max_seg_len"] = max(
         stats["max_seg_len"], max([len(s) for s in document_state.segments])
     )
@@ -428,8 +457,7 @@ def minimize_partition(
     name, language, extension, stats, tokenizer, seg_len, input_dir, output_dir
 ):
     input_path = "{}/{}.{}.{}".format(input_dir, name, language, extension)
-    output_path = "{}/{}.t5-small.{}.{}.jsonlines".format(
-        output_dir, name, language, seg_len)
+    output_path = "{}/{}.t5-small.{}.{}.jsonlines".format(output_dir, name, language, seg_len)
 
     count = 0
     logger.info("Minimizing {}".format(input_path))
@@ -448,18 +476,16 @@ def minimize_partition(
                 documents[-1][1].append(line)
 
     datasets, max_target_len = [], 0
+    max_input_len = 0
     for document_lines in documents:
-        if name == "test":
-            global max_input_len
-            max_input_len = max(max_input_len, len([x for x in document_lines[1] if len(x) > 2]))
+        max_input_len = max(max_input_len, len([x for x in document_lines[1] if len(x) > 2]))
         document = get_document(document_lines, tokenizer, language, seg_len)
         for doc in document:
             max_target_len = max([max_target_len] + [len(doc['cluster_category'])])
             datasets.append(doc)
             count += 1
-    print(max_input_len)
     json.dump(datasets, open(output_path, "w"))
-    logger.info("Maximum target sequence length: {}".format(max_target_len))
+    logger.info(f"Maximum input sequence length: {max_input_len}, Maximum target sequence length: {max_target_len}")
     logger.info("Wrote {} documents to {}".format(count, output_path))
 
 
@@ -479,12 +505,9 @@ if __name__ == "__main__":
     if not os.path.isdir(output_dir):
         os.mkdir(output_dir)
 
-    for seg_len in [2048]:
+    for seg_len in [4096, 2048]:
         stats = collections.defaultdict(int)
-        minimize_language(
-            "english", stats, seg_len,
-            input_dir, output_dir
-        )
+        minimize_language("english", stats, seg_len, input_dir, output_dir)
 
         logger.info("Dataset stats:")
         for k, v in stats.items():
