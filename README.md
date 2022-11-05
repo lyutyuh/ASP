@@ -158,7 +158,7 @@ and `<newdataset>_types.json`:
         "Peop": {"short": "Peop", "verbose":"People"}, 
         "Other": {"short": "Other", "verbose": "Other"}
     }, 
-    "relations": {
+    "relations": { // Not necessary for NER
         "Work_For": {"short": "Work", "verbose": "Work for", "symmetric": false}, 
         "Kill": {"short": "Kill", "verbose": "Kill", "symmetric": false}, 
         "OrgBased_In": {"short": "OrgBI", "verbose": "Organization based in", "symmetric": false}, 
@@ -177,9 +177,9 @@ and run
 
 * For coreference resolution, convert the new dataset to CoNLL-12 format.
 Then
-  ```bash
-  python ./data/t5minimize_coref.py ./data/<newdataset>/ ./data/<newdataset>/
-  ```
+```bash
+python ./data/t5minimize_coref.py ./data/<newdataset>/ ./data/<newdataset>/
+```
 
 ### 2. Prepare the configuration
 Add a new entry in the corresponding `.conf` file under [configs](configs) with the directory to the new dataset `data_dir = ${ASP}/data/<newdataset>/`
