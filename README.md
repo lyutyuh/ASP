@@ -191,7 +191,7 @@ Add a new entry in the corresponding `.conf` file under [configs](configs) with 
 
 ## Citation
 ```bibtex
-@misc{liu2022autoregressive,
+@inproceedings{liu-etal-2022-autoregressive,
     title={Autoregressive Structured Prediction with Language Models},
     author={Tianyu Liu and Yuchen Jiang and Nicholas Monath and Ryan Cotterell and Mrinmaya Sachan},
     year={2022},
