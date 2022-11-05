@@ -75,6 +75,7 @@ export ASP=$PWD # setting environment variable
     unzip ./data/conll03_ner.zip -d ./data
     rm ./data/conll03_ner.zip
     python ./data/conll03_ner/conll03_to_json.py
+    python ./data/t5minimize_ner.py ./data/conll03_ner ./data/conll03_ner
   ```
 
 ### OntoNotes V5
@@ -91,6 +92,7 @@ export ASP=$PWD # setting environment variable
     wget https://polybox.ethz.ch/index.php/s/Lk44AwhOeDSeZTh/download -O ./data/conll04_ere.zip
     unzip ./data/conll04_ere.zip -d ./data
     rm ./data/conll04_ere.zip
+    python ./data/t5minimize_ere.py ./data/conll04_ere/ ./data/conll04_ere
   ```
 
 ### ACE-05
@@ -102,6 +104,7 @@ Then:
 
   ```bash
     python ./data/ace05_ere/ace05_to_json.py
+    python ./data/t5minimize_ere.py ./data/ace05_ere ./data/ace05_ere
   ```
 
 </details> 
@@ -132,6 +135,54 @@ For task in ```{ner,ere,coref}```:
 ```
 Please find the ```<config_name>``` in each ```{ner,ere,coref}.conf``` file under [configs](configs)
 
+
+
+## Running on New Datasets
+### 1. prepare the data
+* For `named entity recognition` and `relation extraction`,
+convert the new dataset to `<newdataset>_{train,dev,test}.json` in the following format:
+```json
+[{
+    "tokens": ["John", "Wilkes", "Booth", ",", "who", "assassinated", "President", "Lincoln", ",", "was", "an", "actor", "."], 
+    "entities": [{"type": "Peop", "start": 0, "end": 3}, {"type": "Peop", "start": 6, "end": 8}], 
+    "relations": [{"type": "Kill", "head": 0, "tail": 1}] // Not necessary for NER
+}, ...]
+```
+and `<newdataset>_types.json`:
+
+```json
+{
+    "entities": {
+        "Loc": {"short": "Loc", "verbose": "Location"}, 
+        "Org": {"short": "Org", "verbose": "Organization"}, 
+        "Peop": {"short": "Peop", "verbose":"People"}, 
+        "Other": {"short": "Other", "verbose": "Other"}
+    }, 
+    "relations": {
+        "Work_For": {"short": "Work", "verbose": "Work for", "symmetric": false}, 
+        "Kill": {"short": "Kill", "verbose": "Kill", "symmetric": false}, 
+        "OrgBased_In": {"short": "OrgBI", "verbose": "Organization based in", "symmetric": false}, 
+        "Live_In": {"short": "Live", "verbose": "Live in", "symmetric": false}, 
+        "Located_In": {"short": "LocIn", "verbose": "Located in", "symmetric": false}
+    }
+}
+```
+
+
+and run 
+```bash
+  python ./data/t5minimize_ere.py ./data/<newdataset>/ ./data/<newdataset>/
+```
+
+
+* For coreference resolution, convert the new dataset to CoNLL-12 format.
+Then
+  ```bash
+  python ./data/t5minimize_coref.py ./data/<newdataset>/ ./data/<newdataset>/
+  ```
+
+### 2. Prepare the configuration
+Add a new entry in the corresponding `.conf` file under [configs](configs) with the directory to the new dataset `data_dir = ${ASP}/data/<newdataset>/`
 
 
 ## Pre-trained models
