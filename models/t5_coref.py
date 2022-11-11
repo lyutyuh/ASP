@@ -179,8 +179,7 @@ class T5Coref(T5PreTrainedModel):
         if labels is not None:  # Training: We compute loss
             # moving label-related data/module to self.device,
             # the same with output.last_hidden_state
-            outputs.last_hidden_state = outputs.last_hidden_state.to(
-                self.device)
+            outputs.last_hidden_state = outputs.last_hidden_state.to(self.device)
 
             # shape: (batch_size, seq_len, 1)
             action_logits = self.action_head(outputs.last_hidden_state)

@@ -169,8 +169,7 @@ class T5NER(T5PreTrainedModel):
 
         loss, lm_logits = None, None
         if labels is not None:  # Training: We compute loss
-            outputs.last_hidden_state = outputs.last_hidden_state.to(
-                self.last_device)
+            outputs.last_hidden_state = outputs.last_hidden_state.to(self.device)
 
             # shape: (batchsize, seq_len, 1)
             action_logits = self.action_head(outputs.last_hidden_state)
@@ -208,9 +207,7 @@ class T5NER(T5PreTrainedModel):
 
         else:  # inference, step-by-step classifications
             # (batch_size, 1, dim)
-            outputs.last_hidden_state = outputs.last_hidden_state.to(
-                self.device
-            )
+            outputs.last_hidden_state = outputs.last_hidden_state.to(self.device)
             # denom: (batch_size, 1, 1)
             # l_choice / typing_choice: (batch_size, 1)
             (denom, l_choice, typing_choice) = self.get_logits_inference(
